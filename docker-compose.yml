@@ -1,0 +1,226 @@
+version: '3.8'
+
+services:
+
+  # ─────────────────────────────────────────────
+  # INFRASTRUCTURE
+  # ─────────────────────────────────────────────
+
+  mysql:
+    image: mysql:8.0
+    container_name: jobboard-mysql
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_password"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - jobboard-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: jobboard-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - jobboard-network
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: jobboard-rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"   # Management UI: http://localhost:15672 (guest/guest)
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - jobboard-network
+
+  # ─────────────────────────────────────────────
+  # APPLICATION SERVICES
+  # ─────────────────────────────────────────────
+
+  auth-service:
+    build: ./auth-service
+    container_name: jobboard-auth-service
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/auth_db?useSSL=false&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root_password
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      JWT_SECRET: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+      JWT_EXPIRATION: 86400000
+      JWT_REFRESH_EXPIRATION: 604800000
+    networks:
+      - jobboard-network
+
+  job-service:
+    build: ./job-service
+    container_name: jobboard-job-service
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/job_db?useSSL=false&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root_password
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: guest
+      SPRING_RABBITMQ_PASSWORD: guest
+      JWT_SECRET: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+      JWT_EXPIRATION: 86400000
+    networks:
+      - jobboard-network
+
+  application-service:
+    build: ./application-service
+    container_name: jobboard-application-service
+    restart: unless-stopped
+    ports:
+      - "8083:8083"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      job-service:
+        condition: service_started
+      profile-service:
+        condition: service_started
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/application_db?useSSL=false&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root_password
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: guest
+      SPRING_RABBITMQ_PASSWORD: guest
+      JWT_SECRET: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+      JWT_EXPIRATION: 86400000
+      JOB_SERVICE_URL: http://job-service:8082
+      PROFILE_SERVICE_URL: http://profile-service:8084
+    networks:
+      - jobboard-network
+
+  profile-service:
+    build: ./profile-service
+    container_name: jobboard-profile-service
+    restart: unless-stopped
+    ports:
+      - "8084:8084"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/profile_db?useSSL=false&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root_password
+      JWT_SECRET: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+      JWT_EXPIRATION: 86400000
+    networks:
+      - jobboard-network
+
+  notification-service:
+    build: ./notification-service
+    container_name: jobboard-notification-service
+    restart: unless-stopped
+    ports:
+      - "8085:8085"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: guest
+      SPRING_RABBITMQ_PASSWORD: guest
+      SPRING_MAIL_HOST: smtp.gmail.com
+      SPRING_MAIL_PORT: 587
+      SPRING_MAIL_USERNAME: your_email@gmail.com
+      SPRING_MAIL_PASSWORD: your_app_password
+    networks:
+      - jobboard-network
+
+  api-gateway:
+    build: ./api-gateway
+    container_name: jobboard-api-gateway
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      - auth-service
+      - job-service
+      - application-service
+      - profile-service
+      - notification-service
+    environment:
+      SPRING_CLOUD_GATEWAY_MVC_ROUTES_0_ID: auth-service
+      SPRING_CLOUD_GATEWAY_MVC_ROUTES_0_URI: http://auth-service:8081
+      SPRING_CLOUD_GATEWAY_MVC_ROUTES_0_PREDICATES_0: Path=/api/auth/**
+      SPRING_CLOUD_GATEWAY_MVC_ROUTES_1_ID: job-service
+      SPRING_CLOUD_GATEWAY_MVC_ROUTES_1_URI: http://job-service:8082
+      SPRING_CLOUD_GATEWAY_MVC_ROUTES_1_PREDICATES_0: Path=/api/jobs/**
+      SPRING_CLOUD_GATEWAY_MVC_ROUTES_2_ID: application-service
+      SPRING_CLOUD_GATEWAY_MVC_ROUTES_2_URI: http://application-service:8083
+      SPRING_CLOUD_GATEWAY_MVC_ROUTES_2_PREDICATES_0: Path=/api/applications/**
+      SPRING_CLOUD_GATEWAY_MVC_ROUTES_3_ID: profile-service
+      SPRING_CLOUD_GATEWAY_MVC_ROUTES_3_URI: http://profile-service:8084
+      SPRING_CLOUD_GATEWAY_MVC_ROUTES_3_PREDICATES_0: Path=/api/profiles/**
+    networks:
+      - jobboard-network
+
+# ─────────────────────────────────────────────
+# NETWORKS & VOLUMES
+# ─────────────────────────────────────────────
+
+networks:
+  jobboard-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  redis_data:
+  rabbitmq_data:
