@@ -70,6 +70,10 @@ public class JwtUtil {
         return Role.valueOf(parseClaims(token).get("role", String.class));
     }
 
+    public long getExpiration(String token) {
+        return parseClaims(token).getExpiration().getTime();
+    }
+
     private Claims parseClaims(String token) {
         return Jwts.parserBuilder()
                 .setSigningKey(key)
@@ -78,7 +82,6 @@ public class JwtUtil {
                 .getBody();
     }
 
-    // JWT secret trong config là chuỗi hex, cần chuyển sang byte[]
     private byte[] hexToBytes(String hex) {
         int len = hex.length();
         byte[] data = new byte[len / 2];
