@@ -45,7 +45,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         // Check token có bị blacklist không (đã logout)
         Boolean blacklisted = redisTemplate.hasKey("blacklist:" + token);
         if (Boolean.TRUE.equals(blacklisted)) {
-            filterChain.doFilter(request, response);
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             return;
         }
 
