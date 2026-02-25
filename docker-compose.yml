@@ -84,7 +84,7 @@ services:
       redis:
         condition: service_healthy
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/auth_db?useSSL=false&serverTimezone=UTC
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/auth_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
       SPRING_DATASOURCE_USERNAME: jobboard
       SPRING_DATASOURCE_PASSWORD: jobboard_password
       SPRING_DATA_REDIS_HOST: redis
@@ -205,18 +205,21 @@ services:
       - profile-service
       - notification-service
     environment:
-      SPRING_CLOUD_GATEWAY_MVC_ROUTES_0_ID: auth-service
-      SPRING_CLOUD_GATEWAY_MVC_ROUTES_0_URI: http://auth-service:8081
-      SPRING_CLOUD_GATEWAY_MVC_ROUTES_0_PREDICATES_0: Path=/api/auth/**
-      SPRING_CLOUD_GATEWAY_MVC_ROUTES_1_ID: job-service
-      SPRING_CLOUD_GATEWAY_MVC_ROUTES_1_URI: http://job-service:8082
-      SPRING_CLOUD_GATEWAY_MVC_ROUTES_1_PREDICATES_0: Path=/api/jobs/**
-      SPRING_CLOUD_GATEWAY_MVC_ROUTES_2_ID: application-service
-      SPRING_CLOUD_GATEWAY_MVC_ROUTES_2_URI: http://application-service:8083
-      SPRING_CLOUD_GATEWAY_MVC_ROUTES_2_PREDICATES_0: Path=/api/applications/**
-      SPRING_CLOUD_GATEWAY_MVC_ROUTES_3_ID: profile-service
-      SPRING_CLOUD_GATEWAY_MVC_ROUTES_3_URI: http://profile-service:8084
-      SPRING_CLOUD_GATEWAY_MVC_ROUTES_3_PREDICATES_0: Path=/api/profiles/**
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      JWT_SECRET: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+      SPRING_CLOUD_GATEWAY_ROUTES_0_ID: auth-service
+      SPRING_CLOUD_GATEWAY_ROUTES_0_URI: http://auth-service:8081
+      SPRING_CLOUD_GATEWAY_ROUTES_0_PREDICATES_0: Path=/api/auth/**
+      SPRING_CLOUD_GATEWAY_ROUTES_1_ID: job-service
+      SPRING_CLOUD_GATEWAY_ROUTES_1_URI: http://job-service:8082
+      SPRING_CLOUD_GATEWAY_ROUTES_1_PREDICATES_0: Path=/api/jobs/**
+      SPRING_CLOUD_GATEWAY_ROUTES_2_ID: application-service
+      SPRING_CLOUD_GATEWAY_ROUTES_2_URI: http://application-service:8083
+      SPRING_CLOUD_GATEWAY_ROUTES_2_PREDICATES_0: Path=/api/applications/**
+      SPRING_CLOUD_GATEWAY_ROUTES_3_ID: profile-service
+      SPRING_CLOUD_GATEWAY_ROUTES_3_URI: http://profile-service:8084
+      SPRING_CLOUD_GATEWAY_ROUTES_3_PREDICATES_0: Path=/api/profiles/**
     networks:
       - jobboard-network
 

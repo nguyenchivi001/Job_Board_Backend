@@ -1,124 +1,93 @@
 package com.jobboard.api_gateway.filter;
 
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletRequestWrapper;
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.cloud.gateway.filter.GatewayFilterChain;
+import org.springframework.cloud.gateway.filter.GlobalFilter;
+import org.springframework.core.Ordered;
+import org.springframework.core.io.buffer.DataBuffer;
+import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.stereotype.Component;
-import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.server.ServerWebExchange;
+import reactor.core.publisher.Mono;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.Enumeration;
-import java.util.HashMap;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
-public class JwtAuthFilter extends OncePerRequestFilter {
+public class JwtAuthFilter implements GlobalFilter, Ordered {
 
     private final JwtUtil jwtUtil;
-    private final StringRedisTemplate redisTemplate;
+    private final ReactiveStringRedisTemplate redisTemplate;
 
-    // Các path không cần JWT — auth-service tự xử lý xác thực nội bộ
     private static final List<String> PUBLIC_PATHS = List.of(
             "/api/auth/register",
             "/api/auth/login",
-            "/api/auth/refresh"
+            "/api/auth/refresh",
+            "/actuator"
     );
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain filterChain) throws ServletException, IOException {
-
-        String path = request.getRequestURI();
+    public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        String path = exchange.getRequest().getURI().getPath();
 
         if (isPublicPath(path)) {
-            filterChain.doFilter(request, response);
-            return;
+            return chain.filter(exchange);
         }
 
-        String authHeader = request.getHeader("Authorization");
+        String authHeader = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            sendUnauthorized(response, "Missing or invalid Authorization header");
-            return;
+            return sendUnauthorized(exchange, "Missing or invalid Authorization header");
         }
 
         String token = authHeader.substring(7);
 
         if (!jwtUtil.validateToken(token)) {
-            sendUnauthorized(response, "Invalid or expired token");
-            return;
+            return sendUnauthorized(exchange, "Invalid or expired token");
         }
 
         // Kiểm tra token đã bị blacklist chưa (user đã logout)
-        Boolean blacklisted = redisTemplate.hasKey("blacklist:" + token);
-        if (Boolean.TRUE.equals(blacklisted)) {
-            sendUnauthorized(response, "Token has been revoked");
-            return;
-        }
+        return redisTemplate.hasKey("blacklist:" + token)
+                .flatMap(blacklisted -> {
+                    if (Boolean.TRUE.equals(blacklisted)) {
+                        return sendUnauthorized(exchange, "Token has been revoked");
+                    }
 
-        String userId = jwtUtil.extractUserId(token);
-        String role = jwtUtil.extractRole(token);
+                    String userId = jwtUtil.extractUserId(token);
+                    String role = jwtUtil.extractRole(token);
 
-        // Inject X-User-Id và X-User-Role vào request trước khi forward
-        Map<String, String> extraHeaders = new HashMap<>();
-        extraHeaders.put("X-User-Id", userId);
-        extraHeaders.put("X-User-Role", role);
+                    // Inject X-User-Id và X-User-Role vào request trước khi forward
+                    ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
+                            .header("X-User-Id", userId)
+                            .header("X-User-Role", role)
+                            .build();
 
-        filterChain.doFilter(new HeaderMutatingRequestWrapper(request, extraHeaders), response);
+                    return chain.filter(exchange.mutate().request(mutatedRequest).build());
+                });
     }
 
     private boolean isPublicPath(String path) {
         return PUBLIC_PATHS.stream().anyMatch(path::startsWith);
     }
 
-    private void sendUnauthorized(HttpServletResponse response, String message) throws IOException {
-        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.getWriter().write("""
-                {"status":401,"error":"Unauthorized","message":"%s"}
-                """.formatted(message));
+    private Mono<Void> sendUnauthorized(ServerWebExchange exchange, String message) {
+        ServerHttpResponse response = exchange.getResponse();
+        response.setStatusCode(HttpStatus.UNAUTHORIZED);
+        response.getHeaders().add(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
+        String body = """
+                {"status":401,"error":"Unauthorized","message":"%s"}""".formatted(message);
+        DataBuffer buffer = response.bufferFactory().wrap(body.getBytes(StandardCharsets.UTF_8));
+        return response.writeWith(Mono.just(buffer));
     }
 
-    // Wrapper để thêm custom headers vào request (HttpServletRequest mặc định immutable)
-    private static class HeaderMutatingRequestWrapper extends HttpServletRequestWrapper {
-
-        private final Map<String, String> additionalHeaders;
-
-        HeaderMutatingRequestWrapper(HttpServletRequest request, Map<String, String> additionalHeaders) {
-            super(request);
-            this.additionalHeaders = new HashMap<>(additionalHeaders);
-        }
-
-        @Override
-        public String getHeader(String name) {
-            if (additionalHeaders.containsKey(name)) {
-                return additionalHeaders.get(name);
-            }
-            return super.getHeader(name);
-        }
-
-        @Override
-        public Enumeration<String> getHeaderNames() {
-            List<String> names = Collections.list(super.getHeaderNames());
-            names.addAll(additionalHeaders.keySet());
-            return Collections.enumeration(names);
-        }
-
-        @Override
-        public Enumeration<String> getHeaders(String name) {
-            if (additionalHeaders.containsKey(name)) {
-                return Collections.enumeration(List.of(additionalHeaders.get(name)));
-            }
-            return super.getHeaders(name);
-        }
+    @Override
+    public int getOrder() {
+        return -1;
     }
 }
