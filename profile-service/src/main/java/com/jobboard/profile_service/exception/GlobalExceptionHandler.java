@@ -19,12 +19,6 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.NOT_FOUND, ex.getMessage(), request.getRequestURI());
     }
 
-    @ExceptionHandler(ProfileAlreadyExistsException.class)
-    public ResponseEntity<ErrorResponse> handleAlreadyExists(
-            ProfileAlreadyExistsException ex, HttpServletRequest request) {
-        return build(HttpStatus.CONFLICT, ex.getMessage(), request.getRequestURI());
-    }
-
     @ExceptionHandler(UnauthorizedException.class)
     public ResponseEntity<ErrorResponse> handleUnauthorized(
             UnauthorizedException ex, HttpServletRequest request) {
