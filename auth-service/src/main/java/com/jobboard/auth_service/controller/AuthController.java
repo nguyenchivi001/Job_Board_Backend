@@ -4,6 +4,7 @@ import com.jobboard.auth_service.dto.AuthResponse;
 import com.jobboard.auth_service.dto.LoginRequest;
 import com.jobboard.auth_service.dto.RefreshRequest;
 import com.jobboard.auth_service.dto.RegisterRequest;
+import com.jobboard.auth_service.exception.InvalidTokenException;
 import com.jobboard.auth_service.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -36,7 +37,7 @@ public class AuthController {
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(@RequestHeader("Authorization") String authHeader) {
         if (!authHeader.startsWith("Bearer ")) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            throw new InvalidTokenException();
         }
         String token = authHeader.substring(7);
         authService.logout(token);
