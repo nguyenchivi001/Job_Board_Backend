@@ -163,7 +163,7 @@ services:
       mysql:
         condition: service_healthy
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/profile_db?useSSL=false&serverTimezone=UTC
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/profile_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
       SPRING_DATASOURCE_USERNAME: jobboard
       SPRING_DATASOURCE_PASSWORD: jobboard_password
       JWT_SECRET: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
