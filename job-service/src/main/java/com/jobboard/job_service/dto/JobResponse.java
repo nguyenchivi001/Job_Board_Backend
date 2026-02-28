@@ -1,6 +1,7 @@
 package com.jobboard.job_service.dto;
 
 import com.jobboard.job_service.entity.Job;
+import com.jobboard.job_service.enums.JobCategory;
 import com.jobboard.job_service.enums.JobStatus;
 import com.jobboard.job_service.enums.JobType;
 import lombok.Builder;
@@ -22,6 +23,7 @@ public class JobResponse implements Serializable {
     private BigDecimal salaryMin;
     private BigDecimal salaryMax;
     private JobType type;
+    private JobCategory category;
     private JobStatus status;
     private Long employerId;
     private LocalDateTime createdAt;
@@ -37,6 +39,7 @@ public class JobResponse implements Serializable {
                 .salaryMin(job.getSalaryMin())
                 .salaryMax(job.getSalaryMax())
                 .type(job.getType())
+                .category(job.getCategory())
                 .status(job.getStatus())
                 .employerId(job.getEmployerId())
                 .createdAt(job.getCreatedAt())

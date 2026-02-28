@@ -1,5 +1,6 @@
 package com.jobboard.job_service.dto;
 
+import com.jobboard.job_service.enums.JobCategory;
 import com.jobboard.job_service.enums.JobStatus;
 import com.jobboard.job_service.enums.JobType;
 import jakarta.validation.constraints.NotBlank;
@@ -28,6 +29,8 @@ public class JobRequest {
 
     @NotNull
     private JobType type;
+
+    private JobCategory category;
 
     private JobStatus status = JobStatus.OPEN;
 }
