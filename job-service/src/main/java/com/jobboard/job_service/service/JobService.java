@@ -2,9 +2,11 @@ package com.jobboard.job_service.service;
 
 import com.jobboard.job_service.config.RabbitMQConfig;
 import com.jobboard.job_service.dto.JobCreatedEvent;
+import com.jobboard.job_service.dto.JobFiltersResponse;
 import com.jobboard.job_service.dto.JobRequest;
 import com.jobboard.job_service.dto.JobResponse;
 import com.jobboard.job_service.entity.Job;
+import com.jobboard.job_service.enums.JobCategory;
 import com.jobboard.job_service.enums.JobType;
 import com.jobboard.job_service.exception.JobNotFoundException;
 import com.jobboard.job_service.exception.UnauthorizedException;
@@ -17,6 +19,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
+import java.util.Arrays;
+
 @Service
 @RequiredArgsConstructor
 public class JobService {
@@ -24,9 +28,17 @@ public class JobService {
     private final JobRepository jobRepository;
     private final RabbitTemplate rabbitTemplate;
 
-    public Page<JobResponse> search(String title, String location, JobType type, int page, int size) {
-        return jobRepository.search(title, location, type, PageRequest.of(page, size))
+    public Page<JobResponse> search(String title, String location, JobType type, JobCategory category, int page, int size) {
+        return jobRepository.search(title, location, type, category, PageRequest.of(page, size))
                 .map(JobResponse::from);
+    }
+
+    public JobFiltersResponse getFilters() {
+        return JobFiltersResponse.builder()
+                .locations(jobRepository.findDistinctLocations())
+                .categories(Arrays.asList(JobCategory.values()))
+                .types(Arrays.asList(JobType.values()))
+                .build();
     }
 
     @Cacheable(value = "jobs", key = "#id")
@@ -45,6 +57,7 @@ public class JobService {
                 .salaryMin(request.getSalaryMin())
                 .salaryMax(request.getSalaryMax())
                 .type(request.getType())
+                .category(request.getCategory())
                 .status(request.getStatus())
                 .employerId(employerId)
                 .build();
@@ -72,6 +85,7 @@ public class JobService {
         job.setSalaryMin(request.getSalaryMin());
         job.setSalaryMax(request.getSalaryMax());
         job.setType(request.getType());
+        job.setCategory(request.getCategory());
         job.setStatus(request.getStatus());
 
         return JobResponse.from(jobRepository.save(job));

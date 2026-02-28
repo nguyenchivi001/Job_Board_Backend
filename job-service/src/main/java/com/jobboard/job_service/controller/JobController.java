@@ -1,7 +1,9 @@
 package com.jobboard.job_service.controller;
 
+import com.jobboard.job_service.dto.JobFiltersResponse;
 import com.jobboard.job_service.dto.JobRequest;
 import com.jobboard.job_service.dto.JobResponse;
+import com.jobboard.job_service.enums.JobCategory;
 import com.jobboard.job_service.enums.JobType;
 import com.jobboard.job_service.service.JobService;
 import jakarta.validation.Valid;
@@ -24,9 +26,15 @@ public class JobController {
             @RequestParam(required = false) String title,
             @RequestParam(required = false) String location,
             @RequestParam(required = false) JobType type,
+            @RequestParam(required = false) JobCategory category,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        return ResponseEntity.ok(jobService.search(title, location, type, page, size));
+        return ResponseEntity.ok(jobService.search(title, location, type, category, page, size));
+    }
+
+    @GetMapping("/filters")
+    public ResponseEntity<JobFiltersResponse> getFilters() {
+        return ResponseEntity.ok(jobService.getFilters());
     }
 
     @GetMapping("/{id}")
