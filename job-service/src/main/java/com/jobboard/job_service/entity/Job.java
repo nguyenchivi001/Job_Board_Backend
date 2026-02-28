@@ -1,5 +1,6 @@
 package com.jobboard.job_service.entity;
 
+import com.jobboard.job_service.enums.JobCategory;
 import com.jobboard.job_service.enums.JobStatus;
 import com.jobboard.job_service.enums.JobType;
 import jakarta.persistence.*;
@@ -41,6 +42,9 @@ public class Job {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private JobType type;
+
+    @Enumerated(EnumType.STRING)
+    private JobCategory category;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
