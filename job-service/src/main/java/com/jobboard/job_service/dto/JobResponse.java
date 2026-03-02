@@ -4,8 +4,10 @@ import com.jobboard.job_service.entity.Job;
 import com.jobboard.job_service.enums.JobCategory;
 import com.jobboard.job_service.enums.JobStatus;
 import com.jobboard.job_service.enums.JobType;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
@@ -13,6 +15,8 @@ import java.time.LocalDateTime;
 
 @Data
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class JobResponse implements Serializable {
 
     private Long id;
