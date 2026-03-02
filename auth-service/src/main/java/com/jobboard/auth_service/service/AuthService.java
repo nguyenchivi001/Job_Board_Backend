@@ -60,6 +60,8 @@ public class AuthService {
         String storedToken = redisTemplate.opsForValue().get("refresh_token:" + userId);
 
         if (!refreshToken.equals(storedToken)) {
+            // Token reuse detected — possible theft, invalidate all sessions
+            redisTemplate.delete("refresh_token:" + userId);
             throw new InvalidTokenException();
         }
 
