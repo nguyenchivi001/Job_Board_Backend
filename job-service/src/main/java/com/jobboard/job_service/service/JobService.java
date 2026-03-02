@@ -4,6 +4,7 @@ import com.jobboard.job_service.config.RabbitMQConfig;
 import com.jobboard.job_service.dto.JobCreatedEvent;
 import com.jobboard.job_service.dto.JobFiltersResponse;
 import com.jobboard.job_service.dto.JobRequest;
+import com.jobboard.job_service.dto.JobUpdateRequest;
 import com.jobboard.job_service.dto.JobResponse;
 import com.jobboard.job_service.entity.Job;
 import com.jobboard.job_service.enums.JobCategory;
@@ -74,19 +75,19 @@ public class JobService {
     }
 
     @CacheEvict(value = "jobs", key = "#id")
-    public JobResponse update(Long id, Long employerId, JobRequest request) {
+    public JobResponse update(Long id, Long employerId, JobUpdateRequest request) {
         Job job = jobRepository.findByIdAndEmployerId(id, employerId)
                 .orElseThrow(() -> new UnauthorizedException("You are not authorized to update this job"));
 
-        job.setTitle(request.getTitle());
-        job.setDescription(request.getDescription());
-        job.setCompany(request.getCompany());
-        job.setLocation(request.getLocation());
-        job.setSalaryMin(request.getSalaryMin());
-        job.setSalaryMax(request.getSalaryMax());
-        job.setType(request.getType());
-        job.setCategory(request.getCategory());
-        job.setStatus(request.getStatus());
+        if (request.getTitle() != null)        job.setTitle(request.getTitle());
+        if (request.getDescription() != null)  job.setDescription(request.getDescription());
+        if (request.getCompany() != null)      job.setCompany(request.getCompany());
+        if (request.getLocation() != null)     job.setLocation(request.getLocation());
+        if (request.getSalaryMin() != null)    job.setSalaryMin(request.getSalaryMin());
+        if (request.getSalaryMax() != null)    job.setSalaryMax(request.getSalaryMax());
+        if (request.getType() != null)         job.setType(request.getType());
+        if (request.getCategory() != null)     job.setCategory(request.getCategory());
+        if (request.getStatus() != null)       job.setStatus(request.getStatus());
 
         return JobResponse.from(jobRepository.save(job));
     }

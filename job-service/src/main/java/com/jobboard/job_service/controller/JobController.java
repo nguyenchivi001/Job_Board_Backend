@@ -2,6 +2,7 @@ package com.jobboard.job_service.controller;
 
 import com.jobboard.job_service.dto.JobFiltersResponse;
 import com.jobboard.job_service.dto.JobRequest;
+import com.jobboard.job_service.dto.JobUpdateRequest;
 import com.jobboard.job_service.dto.JobResponse;
 import com.jobboard.job_service.enums.JobCategory;
 import com.jobboard.job_service.enums.JobType;
@@ -55,7 +56,7 @@ public class JobController {
     public ResponseEntity<JobResponse> update(
             @PathVariable Long id,
             @RequestHeader("X-User-Id") Long employerId,
-            @Valid @RequestBody JobRequest request) {
+            @RequestBody JobUpdateRequest request) {
         return ResponseEntity.ok(jobService.update(id, employerId, request));
     }
 
