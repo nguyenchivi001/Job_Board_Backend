@@ -7,6 +7,7 @@ import org.springframework.core.Ordered;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
@@ -32,27 +33,45 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
             "/actuator"
     );
 
+    private static final List<String> OPTIONAL_AUTH_PREFIXES = List.of(
+            "/api/jobs",
+            "/api/profiles"
+    );
+
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         String path = exchange.getRequest().getURI().getPath();
+        HttpMethod method = exchange.getRequest().getMethod();
 
+        // 1. Always public
         if (isPublicPath(path)) {
             return chain.filter(exchange);
         }
 
         String authHeader = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
 
+        // 2. Optional JWT — GET /api/jobs/**, GET /api/profiles/**
+        if (HttpMethod.GET.equals(method) && isOptionalAuthPath(path)) {
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                return chain.filter(exchange); // anonymous GET → cho qua
+            }
+            // Có token → validate và forward headers
+            return validateAndForward(exchange, chain, authHeader.substring(7));
+        }
+
+        // 3. Require JWT
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             return sendUnauthorized(exchange, "Missing or invalid Authorization header");
         }
 
-        String token = authHeader.substring(7);
+        return validateAndForward(exchange, chain, authHeader.substring(7));
+    }
 
+    private Mono<Void> validateAndForward(ServerWebExchange exchange, GatewayFilterChain chain, String token) {
         if (!jwtUtil.validateToken(token)) {
             return sendUnauthorized(exchange, "Invalid or expired token");
         }
 
-        // Kiểm tra token đã bị blacklist chưa (user đã logout)
         return redisTemplate.hasKey("blacklist:" + token)
                 .flatMap(blacklisted -> {
                     if (Boolean.TRUE.equals(blacklisted)) {
@@ -62,7 +81,6 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
                     String userId = jwtUtil.extractUserId(token);
                     String role = jwtUtil.extractRole(token);
 
-                    // Inject X-User-Id và X-User-Role vào request trước khi forward
                     ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
                             .header("X-User-Id", userId)
                             .header("X-User-Role", role)
@@ -74,6 +92,10 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
 
     private boolean isPublicPath(String path) {
         return PUBLIC_PATHS.stream().anyMatch(path::startsWith);
+    }
+
+    private boolean isOptionalAuthPath(String path) {
+        return OPTIONAL_AUTH_PREFIXES.stream().anyMatch(path::startsWith);
     }
 
     private Mono<Void> sendUnauthorized(ServerWebExchange exchange, String message) {
