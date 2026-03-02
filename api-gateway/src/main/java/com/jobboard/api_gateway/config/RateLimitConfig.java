@@ -1,5 +1,6 @@
 package com.jobboard.api_gateway.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.ratelimit.KeyResolver;
 import org.springframework.cloud.gateway.filter.ratelimit.RedisRateLimiter;
 import org.springframework.context.annotation.Bean;
@@ -11,13 +12,14 @@ import java.util.Objects;
 @Configuration
 public class RateLimitConfig {
 
-    // 10 requests/second, burst capacity 20
     @Bean
-    public RedisRateLimiter redisRateLimiter() {
-        return new RedisRateLimiter(10, 20, 1);
+    public RedisRateLimiter redisRateLimiter(
+            @Value("${spring.cloud.gateway.redis-rate-limiter.replenish-rate}") int replenishRate,
+            @Value("${spring.cloud.gateway.redis-rate-limiter.burst-capacity}") int burstCapacity,
+            @Value("${spring.cloud.gateway.redis-rate-limiter.requested-tokens}") int requestedTokens) {
+        return new RedisRateLimiter(replenishRate, burstCapacity, requestedTokens);
     }
 
-    // Rate limit by client IP
     @Bean
     public KeyResolver ipKeyResolver() {
         return exchange -> Mono.just(
