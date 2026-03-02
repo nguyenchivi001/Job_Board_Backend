@@ -22,50 +22,60 @@ public class NotificationListener {
     @RabbitListener(queues = RabbitMQConfig.QUEUE_JOB_CREATED)
     public void handleJobCreated(JobCreatedEvent event) {
         log.info("Received job.created event: jobId={}, title={}", event.getId(), event.getTitle());
-
-        emailService.sendEmail(
-                "employer-" + event.getEmployerId() + "@jobboard.local",
-                "Your job has been posted: " + event.getTitle(),
-                "job-created",
-                Map.of(
-                        "jobId", event.getId(),
-                        "jobTitle", event.getTitle(),
-                        "employerId", event.getEmployerId()
-                )
-        );
+        try {
+            // TODO: replace mock email with actual employer email from user service
+            emailService.sendEmail(
+                    "employer-" + event.getEmployerId() + "@jobboard.local",
+                    "Your job has been posted: " + event.getTitle(),
+                    "job-created",
+                    Map.of(
+                            "jobId", event.getId(),
+                            "jobTitle", event.getTitle(),
+                            "employerId", event.getEmployerId()
+                    )
+            );
+        } catch (Exception e) {
+            log.error("Failed to process job.created event for jobId={}: {}", event.getId(), e.getMessage());
+        }
     }
 
     @RabbitListener(queues = RabbitMQConfig.QUEUE_APP_SUBMITTED)
     public void handleApplicationSubmitted(ApplicationSubmittedEvent event) {
         log.info("Received application.submitted event: applicationId={}, jobId={}", event.getApplicationId(), event.getJobId());
-
-        // Notify employer
-        emailService.sendEmail(
-                "employer-" + event.getEmployerId() + "@jobboard.local",
-                "New application received for job #" + event.getJobId(),
-                "application-submitted",
-                Map.of(
-                        "applicationId", event.getApplicationId(),
-                        "jobId", event.getJobId(),
-                        "candidateId", event.getCandidateId()
-                )
-        );
+        try {
+            // TODO: replace mock email with actual employer email from user service
+            emailService.sendEmail(
+                    "employer-" + event.getEmployerId() + "@jobboard.local",
+                    "New application received for job #" + event.getJobId(),
+                    "application-submitted",
+                    Map.of(
+                            "applicationId", event.getApplicationId(),
+                            "jobId", event.getJobId(),
+                            "candidateId", event.getCandidateId()
+                    )
+            );
+        } catch (Exception e) {
+            log.error("Failed to process application.submitted event for applicationId={}: {}", event.getApplicationId(), e.getMessage());
+        }
     }
 
     @RabbitListener(queues = RabbitMQConfig.QUEUE_APP_STATUS_UPDATED)
     public void handleApplicationStatusUpdated(ApplicationStatusUpdatedEvent event) {
         log.info("Received application.status.updated event: applicationId={}, status={}", event.getApplicationId(), event.getStatus());
-
-        // Notify candidate
-        emailService.sendEmail(
-                "candidate-" + event.getCandidateId() + "@jobboard.local",
-                "Your application status has been updated: " + event.getStatus(),
-                "application-status-updated",
-                Map.of(
-                        "applicationId", event.getApplicationId(),
-                        "jobId", event.getJobId(),
-                        "status", event.getStatus()
-                )
-        );
+        try {
+            // TODO: replace mock email with actual candidate email from user service
+            emailService.sendEmail(
+                    "candidate-" + event.getCandidateId() + "@jobboard.local",
+                    "Your application status has been updated: " + event.getStatus(),
+                    "application-status-updated",
+                    Map.of(
+                            "applicationId", event.getApplicationId(),
+                            "jobId", event.getJobId(),
+                            "status", event.getStatus()
+                    )
+            );
+        } catch (Exception e) {
+            log.error("Failed to process application.status.updated event for applicationId={}: {}", event.getApplicationId(), e.getMessage());
+        }
     }
 }
