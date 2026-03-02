@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Data
 public class JobRequest {
@@ -33,4 +34,6 @@ public class JobRequest {
     private JobCategory category;
 
     private JobStatus status = JobStatus.OPEN;
+
+    private LocalDateTime deadline;
 }

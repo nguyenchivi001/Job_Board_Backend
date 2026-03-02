@@ -54,6 +54,8 @@ public class Job {
     @Column(nullable = false)
     private Long employerId;
 
+    private LocalDateTime deadline;
+
     @CreationTimestamp
     private LocalDateTime createdAt;
 

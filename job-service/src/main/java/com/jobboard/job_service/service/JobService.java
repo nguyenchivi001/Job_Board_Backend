@@ -60,6 +60,7 @@ public class JobService {
                 .type(request.getType())
                 .category(request.getCategory())
                 .status(request.getStatus())
+                .deadline(request.getDeadline())
                 .employerId(employerId)
                 .build();
 
@@ -88,6 +89,7 @@ public class JobService {
         if (request.getType() != null)         job.setType(request.getType());
         if (request.getCategory() != null)     job.setCategory(request.getCategory());
         if (request.getStatus() != null)       job.setStatus(request.getStatus());
+        if (request.getDeadline() != null)     job.setDeadline(request.getDeadline());
 
         return JobResponse.from(jobRepository.save(job));
     }

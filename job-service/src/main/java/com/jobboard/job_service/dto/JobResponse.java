@@ -30,6 +30,7 @@ public class JobResponse implements Serializable {
     private JobCategory category;
     private JobStatus status;
     private Long employerId;
+    private LocalDateTime deadline;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -46,6 +47,7 @@ public class JobResponse implements Serializable {
                 .category(job.getCategory())
                 .status(job.getStatus())
                 .employerId(job.getEmployerId())
+                .deadline(job.getDeadline())
                 .createdAt(job.getCreatedAt())
                 .updatedAt(job.getUpdatedAt())
                 .build();
