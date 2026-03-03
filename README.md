@@ -4,50 +4,63 @@ Hệ thống backend cho ứng dụng tuyển dụng việc làm, xây dựng th
 
 ---
 
-## Kiến trúc tổng quan
+## Tính năng nổi bật
+
+- **JWT Authentication** với refresh token rotation và reuse detection — phát hiện token bị đánh cắp, tự động invalidate toàn bộ session
+- **Redis** làm cache cho job listings (TTL 10 phút) và lưu trữ refresh token / blacklist
+- **RabbitMQ** publish/subscribe event khi đăng tin, nộp đơn, cập nhật trạng thái → notification-service gửi email tự động
+- **API Gateway** tập trung: JWT validation, IP-based rate limiting (10 req/s, burst 20), CORS, token blacklist check
+- **OpenFeign** giao tiếp inter-service (application-service → job-service)
+- **Scheduler** tự động đóng tin tuyển dụng hết hạn mỗi đêm lúc 0:00
+- **Unit Tests** 48 test cases với Mockito — không cần Spring context hay infrastructure
+
+---
+
+## Kiến trúc
 
 ```
 Client
   │
   ▼
-┌─────────────────┐
-│   api-gateway   │  :8080  ← entry point duy nhất
-└────────┬────────┘
-         │ route theo path
-    ┌────┴──────────────────────────┐
-    │                               │
-    ▼                               ▼
-┌──────────────┐           ┌──────────────────────┐
-│ auth-service │  :8081    │    job-service        │ :8082
-│ MySQL+Redis  │           │ MySQL+Redis+RabbitMQ  │
-└──────────────┘           └──────────┬───────────┘
-                                      │ publish event
-┌──────────────────────┐              ▼
-│ application-service  │  :8083  ┌──────────────────────┐
-│ MySQL+RabbitMQ+Feign │         │ notification-service │ :8085
-└──────────────────────┘         │ RabbitMQ+MailHog     │
-                                 └──────────────────────┘
-┌──────────────┐
-│profile-service│ :8084
-│    MySQL      │
-└──────────────┘
+┌──────────────────────────────────────────────┐
+│               api-gateway :8080              │
+│  JwtAuthFilter · RateLimiter · CorsFilter    │
+└───────┬──────────┬──────────┬────────────────┘
+        │          │          │          │
+        ▼          ▼          ▼          ▼
+  auth-service  job-service  application-service  profile-service
+     :8081        :8082           :8083               :8084
+   MySQL+Redis  MySQL+Redis    MySQL+Feign          MySQL
+               +RabbitMQ      +RabbitMQ
+                    │               │
+                    └───────┬───────┘
+                            ▼ (events)
+                  notification-service :8085
+                    RabbitMQ + MailHog
 ```
+
+**Luồng dữ liệu chính:**
+1. Client gửi request → api-gateway (validate JWT, check blacklist, rate limit)
+2. Gateway forward kèm header `X-User-Id` + `X-User-Role` → downstream service
+3. Downstream service đọc header qua `HeaderAuthFilter` → build `SecurityContext`
+4. job-service / application-service publish event → RabbitMQ → notification-service → gửi email
 
 ---
 
-## Công nghệ sử dụng
+## Công nghệ
 
 | Thành phần | Công nghệ | Phiên bản |
-|-----------|-----------|-----------|
+|---|---|---|
 | Framework | Spring Boot | 4.0.3 |
 | Cloud | Spring Cloud | 2025.1.0 |
 | Ngôn ngữ | Java | 17 |
 | Database | MySQL | 8.0 |
-| Cache | Redis | 7 |
+| Cache / Session | Redis | 7 |
 | Message Broker | RabbitMQ | 3 |
 | Email (dev) | MailHog | latest |
 | Auth | JWT (JJWT) | 0.11.5 |
-| Container | Docker + Compose | - |
+| Inter-service | OpenFeign | — |
+| Container | Docker + Compose | — |
 
 ---
 
@@ -55,32 +68,14 @@ Client
 
 ```
 Job_Board_Backend/
-├── api-gateway/                 # Cổng vào, routing tới các service
-│   ├── src/
-│   ├── Dockerfile
-│   └── pom.xml
-├── auth-service/                # Đăng ký, đăng nhập, JWT
-│   ├── src/
-│   ├── Dockerfile
-│   └── pom.xml
-├── job-service/                 # Quản lý tin tuyển dụng
-│   ├── src/
-│   ├── Dockerfile
-│   └── pom.xml
-├── application-service/         # Quản lý hồ sơ ứng tuyển
-│   ├── src/
-│   ├── Dockerfile
-│   └── pom.xml
-├── profile-service/             # Quản lý hồ sơ người dùng
-│   ├── src/
-│   ├── Dockerfile
-│   └── pom.xml
-├── notification-service/        # Gửi email thông báo
-│   ├── src/
-│   ├── Dockerfile
-│   └── pom.xml
+├── api-gateway/            # Entry point, JWT filter, rate limiting, CORS
+├── auth-service/           # Đăng ký, đăng nhập, JWT, refresh token
+├── job-service/            # CRUD tin tuyển dụng, Redis cache, scheduler
+├── application-service/    # Nộp đơn, cập nhật trạng thái
+├── profile-service/        # Hồ sơ candidate / company
+├── notification-service/   # Lắng nghe RabbitMQ, gửi email (Thymeleaf)
 ├── docker-compose.yml
-├── init-db.sql                  # Khởi tạo database MySQL
+├── init-db.sql             # Tạo 4 database + user jobboard
 └── README.md
 ```
 
@@ -89,8 +84,8 @@ Job_Board_Backend/
 ## Ports
 
 | Service | Port | Ghi chú |
-|---------|------|---------|
-| api-gateway | 8080 | Entry point chính |
+|---|---|---|
+| api-gateway | 8080 | Entry point duy nhất |
 | auth-service | 8081 | |
 | job-service | 8082 | |
 | application-service | 8083 | |
@@ -105,32 +100,23 @@ Job_Board_Backend/
 
 ---
 
-## Yêu cầu
+## Khởi động
+
+### Yêu cầu
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/)
-- Java 17+ (nếu chạy local không dùng Docker)
-- Maven 3.9+ (nếu chạy local không dùng Docker)
 
----
-
-## Chạy với Docker (khuyến nghị)
-
-### 1. Clone project
+### Chạy toàn bộ hệ thống
 
 ```bash
 git clone <repository-url>
 cd Job_Board_Backend
-```
-
-### 2. Khởi động toàn bộ hệ thống
-
-```bash
 docker-compose up -d --build
 ```
 
-> Lần đầu sẽ mất 5–10 phút để Maven tải dependency và build image.
+> Lần đầu mất 5–10 phút để Maven tải dependency và build image.
 
-### 3. Kiểm tra trạng thái
+### Kiểm tra trạng thái
 
 ```bash
 docker-compose ps
@@ -138,69 +124,264 @@ docker-compose ps
 
 Tất cả container phải ở trạng thái `running` hoặc `healthy`.
 
-### 4. Kiểm tra database đã tạo chưa
+```bash
+# Kiểm tra health từng service
+curl http://localhost:8080/actuator/health
+curl http://localhost:8081/actuator/health
+curl http://localhost:8082/actuator/health
+curl http://localhost:8083/actuator/health
+curl http://localhost:8084/actuator/health
+curl http://localhost:8085/actuator/health
+```
+
+### Chỉ chạy infrastructure (phát triển local)
 
 ```bash
-docker exec -it jobboard-mysql mysql -u root -proot_password -e "SHOW DATABASES;"
+docker-compose up -d mysql redis rabbitmq mailhog
 ```
 
-Kết quả mong đợi:
+Rồi chạy từng service theo thứ tự: `auth` → `profile` → `job` → `notification` → `application` → `api-gateway`
+
+---
+
+## API Reference
+
+Tất cả request đi qua `http://localhost:8080`. Các endpoint cần xác thực phải kèm header:
 ```
-+--------------------+
-| Database           |
-+--------------------+
-| application_db     |
-| auth_db            |
-| job_db             |
-| profile_db         |
-+--------------------+
+Authorization: Bearer <access_token>
 ```
 
-### 5. Kiểm tra health các service
+### Auth — `/api/auth`
 
-```bash
-curl http://localhost:8080/actuator/health   # api-gateway
-curl http://localhost:8081/actuator/health   # auth-service
-curl http://localhost:8082/actuator/health   # job-service
-curl http://localhost:8083/actuator/health   # application-service
-curl http://localhost:8084/actuator/health   # profile-service
-curl http://localhost:8085/actuator/health   # notification-service
+| Method | Endpoint | Auth | Mô tả |
+|---|---|---|---|
+| POST | `/api/auth/register` | ✗ | Đăng ký tài khoản |
+| POST | `/api/auth/login` | ✗ | Đăng nhập |
+| POST | `/api/auth/refresh` | ✗ | Làm mới access token |
+| POST | `/api/auth/logout` | ✓ | Đăng xuất |
+
+**POST /api/auth/register**
+```json
+// Request
+{
+  "email": "user@example.com",
+  "password": "password123",
+  "role": "CANDIDATE"   // hoặc "EMPLOYER"
+}
+
+// Response 201
+{
+  "accessToken": "eyJ...",
+  "refreshToken": "eyJ...",
+  "userId": 1,
+  "email": "user@example.com",
+  "role": "CANDIDATE"
+}
+```
+
+**POST /api/auth/login**
+```json
+// Request
+{ "email": "user@example.com", "password": "password123" }
+
+// Response 200 — cùng cấu trúc AuthResponse
+```
+
+**POST /api/auth/refresh**
+```json
+// Request
+{ "refreshToken": "eyJ..." }
+
+// Response 200 — AuthResponse mới (token rotation)
+```
+
+**POST /api/auth/logout**
+```
+// Header: Authorization: Bearer <access_token>
+// Response 204 No Content
 ```
 
 ---
 
-## Chạy local (không dùng Docker)
+### Jobs — `/api/jobs`
 
-### 1. Khởi động infrastructure
+| Method | Endpoint | Auth | Role | Mô tả |
+|---|---|---|---|---|
+| GET | `/api/jobs` | ✗ | — | Tìm kiếm tin tuyển dụng |
+| GET | `/api/jobs/filters` | ✗ | — | Lấy danh sách filter |
+| GET | `/api/jobs/{id}` | ✗ | — | Chi tiết tin (cached) |
+| POST | `/api/jobs` | ✓ | EMPLOYER | Đăng tin mới |
+| PUT | `/api/jobs/{id}` | ✓ | EMPLOYER | Cập nhật tin (partial) |
+| DELETE | `/api/jobs/{id}` | ✓ | EMPLOYER | Xóa tin |
 
-```bash
-# Chỉ chạy MySQL, Redis, RabbitMQ, MailHog bằng Docker
-docker-compose up -d mysql redis rabbitmq mailhog
+**GET /api/jobs** — Query params:
+```
+?title=java&location=hanoi&type=FULL_TIME&category=IT&page=0&size=10
+```
+Tất cả params đều optional. Chỉ trả về tin có `status=OPEN`.
+
+**POST /api/jobs**
+```json
+// Request
+{
+  "title": "Backend Developer",
+  "description": "Mô tả công việc...",
+  "company": "Tech Corp",
+  "location": "Hà Nội",
+  "salaryMin": 1000,
+  "salaryMax": 2000,
+  "type": "FULL_TIME",        // FULL_TIME | PART_TIME | CONTRACT | INTERNSHIP
+  "category": "IT",           // IT | MARKETING | FINANCE | DESIGN | ...
+  "status": "OPEN",           // OPEN | CLOSED | DRAFT
+  "deadline": "2025-12-31T23:59:59"
+}
+// Response 201 JobResponse
 ```
 
-### 2. Build và chạy từng service
+**GET /api/jobs/filters**
+```json
+// Response 200
+{
+  "locations": ["Hà Nội", "TP.HCM", "Đà Nẵng"],
+  "categories": ["IT", "MARKETING", "FINANCE", ...],
+  "types": ["FULL_TIME", "PART_TIME", "CONTRACT", "INTERNSHIP"]
+}
+```
 
-Thứ tự khởi động:
+---
+
+### Applications — `/api/applications`
+
+Tất cả endpoints đều yêu cầu xác thực.
+
+| Method | Endpoint | Role | Mô tả |
+|---|---|---|---|
+| POST | `/api/applications` | CANDIDATE | Nộp đơn ứng tuyển |
+| GET | `/api/applications/my` | CANDIDATE | Danh sách đơn đã nộp |
+| GET | `/api/applications/job/{jobId}` | EMPLOYER | Đơn theo tin tuyển dụng |
+| PUT | `/api/applications/{id}/status` | EMPLOYER | Cập nhật trạng thái |
+
+**POST /api/applications**
+```json
+// Request
+{
+  "jobId": 1,
+  "coverLetter": "Thư xin việc..."
+}
+// Response 201 ApplicationResponse
+```
+
+**PUT /api/applications/{id}/status**
+```json
+// Request
+{ "status": "ACCEPTED" }   // PENDING | REVIEWED | ACCEPTED | REJECTED
+// Response 200 ApplicationResponse
+```
+
+---
+
+### Profiles — `/api/profiles`
+
+| Method | Endpoint | Auth | Role | Mô tả |
+|---|---|---|---|---|
+| GET | `/api/profiles/candidate/{userId}` | ✗ | — | Xem hồ sơ candidate |
+| POST | `/api/profiles/candidate` | ✓ | CANDIDATE | Tạo / cập nhật hồ sơ |
+| GET | `/api/profiles/company/{userId}` | ✗ | — | Xem hồ sơ công ty |
+| POST | `/api/profiles/company` | ✓ | EMPLOYER | Tạo / cập nhật hồ sơ |
+
+**POST /api/profiles/candidate**
+```json
+// Request
+{
+  "fullName": "Nguyễn Văn A",
+  "phone": "0912345678",
+  "bio": "5 năm kinh nghiệm...",
+  "skills": "Java, Spring Boot, MySQL",
+  "experience": "...",
+  "education": "...",
+  "resumeUrl": "https://..."
+}
+// Response 201 CandidateProfileResponse
+```
+
+**POST /api/profiles/company**
+```json
+// Request
+{
+  "companyName": "Tech Corp",
+  "description": "Công ty công nghệ...",
+  "website": "https://techcorp.com",
+  "logoUrl": "https://...",
+  "address": "123 Nguyễn Huệ, Q1, TP.HCM",
+  "employeeSize": 200
+}
+// Response 201 CompanyProfileResponse
+```
+
+---
+
+## Security
+
+### JWT Flow
+
+```
+Đăng nhập → access token (1 ngày) + refresh token (7 ngày, lưu Redis)
+
+Refresh token rotation:
+  Client gửi refresh token → server validate → issue token mới → lưu Redis
+  Token cũ bị thay thế ngay lập tức
+
+Reuse detection:
+  Nếu refresh token không khớp Redis → xóa luôn key → throw InvalidTokenException
+  Buộc user đăng nhập lại
+
+Logout:
+  Access token → blacklist Redis (TTL = thời gian còn lại)
+  Refresh token → xóa khỏi Redis
+  api-gateway check blacklist trước khi forward request
+```
+
+### Rate Limiting
+
+- Thuật toán: **Token Bucket** (Redis)
+- Giới hạn: **10 request/giây**, burst tối đa 20
+- Key: IP address
+- Trả về `429 Too Many Requests` khi vượt giới hạn
+
+---
+
+## Cấu hình môi trường
+
+| Biến | Giá trị mặc định |
+|---|---|
+| MySQL root password | `root_password` |
+| MySQL app user | `jobboard` / `jobboard_password` |
+| JWT Expiration | 24 giờ (86400000 ms) |
+| Refresh Token Expiration | 7 ngày (604800000 ms) |
+
+> **Lưu ý:** Thay đổi tất cả password và JWT secret trước khi deploy production.
+
+---
+
+## Testing
 
 ```bash
-# 1. auth-service
-cd auth-service && mvn spring-boot:run
+# Chạy unit tests trong một service
+cd auth-service && ./mvnw test -Dtest="JwtUtilTest,AuthServiceTest"
 
-# 2. profile-service
-cd profile-service && mvn spring-boot:run
-
-# 3. job-service
-cd job-service && mvn spring-boot:run
-
-# 4. notification-service
-cd notification-service && mvn spring-boot:run
-
-# 5. application-service (cần job-service + profile-service chạy trước)
-cd application-service && mvn spring-boot:run
-
-# 6. api-gateway (khởi động cuối cùng)
-cd api-gateway && mvn spring-boot:run
+# Chạy toàn bộ unit tests (bỏ qua contextLoads cần DB)
+./mvnw test -Dtest="JwtUtilTest,AuthServiceTest,JobServiceTest,ApplicationServiceTest,CandidateProfileServiceTest,CompanyProfileServiceTest,EmailServiceTest"
 ```
+
+| Service | Test class | Số tests |
+|---|---|---|
+| auth-service | `JwtUtilTest` | 8 |
+| auth-service | `AuthServiceTest` | 10 |
+| job-service | `JobServiceTest` | 9 |
+| application-service | `ApplicationServiceTest` | 11 |
+| profile-service | `CandidateProfileServiceTest` | 4 |
+| profile-service | `CompanyProfileServiceTest` | 4 |
+| notification-service | `EmailServiceTest` | 2 |
 
 ---
 
@@ -211,15 +392,15 @@ cd api-gateway && mvn spring-boot:run
 docker-compose up -d --build auth-service
 
 # Xem log realtime
-docker-compose logs -f auth-service
+docker-compose logs -f job-service
 
 # Restart 1 service
-docker-compose restart job-service
+docker-compose restart application-service
 
 # Dừng toàn bộ (giữ data)
 docker-compose down
 
-# Reset hoàn toàn (xóa cả data)
+# Reset hoàn toàn (xóa cả data volumes)
 docker-compose down -v && docker-compose up -d --build
 ```
 
@@ -227,39 +408,10 @@ docker-compose down -v && docker-compose up -d --build
 
 ## Web UI
 
-| Tool | URL | Thông tin đăng nhập |
-|------|-----|---------------------|
+| Tool | URL | Đăng nhập |
+|---|---|---|
 | RabbitMQ Management | http://localhost:15672 | `guest` / `guest` |
-| MailHog (xem email) | http://localhost:8025 | Không cần đăng nhập |
-
----
-
-## API Gateway Routes
-
-Tất cả request đi qua `http://localhost:8080`:
-
-| Path | Chuyển tới |
-|------|-----------|
-| `/api/auth/**` | auth-service:8081 |
-| `/api/jobs/**` | job-service:8082 |
-| `/api/applications/**` | application-service:8083 |
-| `/api/profiles/**` | profile-service:8084 |
-
----
-
-## Cấu hình môi trường
-
-Các giá trị mặc định dùng cho môi trường **development**:
-
-| Biến | Giá trị mặc định |
-|------|-----------------|
-| MySQL root password | `root_password` |
-| MySQL app user | `jobboard` / `jobboard_password` |
-| JWT Secret | xem `docker-compose.yml` |
-| JWT Expiration | 24 giờ (86400000ms) |
-| Refresh Token Expiration | 7 ngày (604800000ms) |
-
-> **Lưu ý:** Thay đổi tất cả password và JWT secret trước khi deploy lên môi trường production.
+| MailHog (xem email) | http://localhost:8025 | Không cần |
 
 ---
 
@@ -267,20 +419,19 @@ Các giá trị mặc định dùng cho môi trường **development**:
 
 **Port 3306 bị chiếm:**
 ```bash
-# Đổi port MySQL trong docker-compose.yml
-ports:
-  - "3307:3306"
+# Đổi port MySQL trong docker-compose.yml: "3307:3306"
 ```
 
 **init-db.sql không chạy (database không tạo):**
 ```bash
-# Xóa volume MySQL cũ và tạo lại
-docker-compose down -v
-docker-compose up -d
+# Xóa volume MySQL cũ và khởi động lại
+docker-compose down -v && docker-compose up -d
 ```
 
-**Docker Desktop chưa khởi động:**
+**Service crash do chưa kết nối được infrastructure:**
 ```bash
-# Kiểm tra Docker đang chạy chưa
-docker info
+# Kiểm tra health của mysql / redis / rabbitmq trước
+docker-compose ps
+# Xem log service bị lỗi
+docker-compose logs --tail=50 auth-service
 ```
