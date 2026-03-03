@@ -12,7 +12,7 @@ Hệ thống backend cho ứng dụng tuyển dụng việc làm, xây dựng th
 - **API Gateway** tập trung: JWT validation, IP-based rate limiting (10 req/s, burst 20), CORS, token blacklist check
 - **OpenFeign** giao tiếp inter-service (application-service → job-service)
 - **Scheduler** tự động đóng tin tuyển dụng hết hạn mỗi đêm lúc 0:00
-- **Unit Tests** 48 test cases với Mockito — không cần Spring context hay infrastructure
+- **Unit Tests** 48 test cases với Mockito
 
 ---
 
