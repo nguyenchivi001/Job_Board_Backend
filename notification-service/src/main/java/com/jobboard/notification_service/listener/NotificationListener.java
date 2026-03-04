@@ -1,5 +1,6 @@
 package com.jobboard.notification_service.listener;
 
+import com.jobboard.notification_service.client.AuthServiceClient;
 import com.jobboard.notification_service.config.RabbitMQConfig;
 import com.jobboard.notification_service.dto.ApplicationStatusUpdatedEvent;
 import com.jobboard.notification_service.dto.ApplicationSubmittedEvent;
@@ -18,14 +19,15 @@ import java.util.Map;
 public class NotificationListener {
 
     private final EmailService emailService;
+    private final AuthServiceClient authServiceClient;
 
     @RabbitListener(queues = RabbitMQConfig.QUEUE_JOB_CREATED)
     public void handleJobCreated(JobCreatedEvent event) {
         log.info("Received job.created event: jobId={}, title={}", event.getId(), event.getTitle());
         try {
-            // TODO: replace mock email with actual employer email from user service
+            String employerEmail = authServiceClient.getUserEmail(event.getEmployerId()).getEmail();
             emailService.sendEmail(
-                    "employer-" + event.getEmployerId() + "@jobboard.local",
+                    employerEmail,
                     "Your job has been posted: " + event.getTitle(),
                     "job-created",
                     Map.of(
@@ -43,9 +45,9 @@ public class NotificationListener {
     public void handleApplicationSubmitted(ApplicationSubmittedEvent event) {
         log.info("Received application.submitted event: applicationId={}, jobId={}", event.getApplicationId(), event.getJobId());
         try {
-            // TODO: replace mock email with actual employer email from user service
+            String employerEmail = authServiceClient.getUserEmail(event.getEmployerId()).getEmail();
             emailService.sendEmail(
-                    "employer-" + event.getEmployerId() + "@jobboard.local",
+                    employerEmail,
                     "New application received for job #" + event.getJobId(),
                     "application-submitted",
                     Map.of(
@@ -63,9 +65,9 @@ public class NotificationListener {
     public void handleApplicationStatusUpdated(ApplicationStatusUpdatedEvent event) {
         log.info("Received application.status.updated event: applicationId={}, status={}", event.getApplicationId(), event.getStatus());
         try {
-            // TODO: replace mock email with actual candidate email from user service
+            String candidateEmail = authServiceClient.getUserEmail(event.getCandidateId()).getEmail();
             emailService.sendEmail(
-                    "candidate-" + event.getCandidateId() + "@jobboard.local",
+                    candidateEmail,
                     "Your application status has been updated: " + event.getStatus(),
                     "application-status-updated",
                     Map.of(

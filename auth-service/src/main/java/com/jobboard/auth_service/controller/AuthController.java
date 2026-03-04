@@ -4,6 +4,7 @@ import com.jobboard.auth_service.dto.AuthResponse;
 import com.jobboard.auth_service.dto.LoginRequest;
 import com.jobboard.auth_service.dto.RefreshRequest;
 import com.jobboard.auth_service.dto.RegisterRequest;
+import com.jobboard.auth_service.dto.UserEmailResponse;
 import com.jobboard.auth_service.exception.InvalidTokenException;
 import com.jobboard.auth_service.service.AuthService;
 import jakarta.validation.Valid;
@@ -32,6 +33,11 @@ public class AuthController {
     @PostMapping("/refresh")
     public ResponseEntity<AuthResponse> refresh(@Valid @RequestBody RefreshRequest request) {
         return ResponseEntity.ok(authService.refreshToken(request.getRefreshToken()));
+    }
+
+    @GetMapping("/users/{userId}/email")
+    public ResponseEntity<UserEmailResponse> getUserEmail(@PathVariable Long userId) {
+        return ResponseEntity.ok(new UserEmailResponse(authService.getUserEmail(userId)));
     }
 
     @PostMapping("/logout")

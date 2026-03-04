@@ -88,6 +88,12 @@ public class AuthService {
         redisTemplate.delete("refresh_token:" + userId);
     }
 
+    public String getUserEmail(Long userId) {
+        return userRepository.findById(userId)
+                .map(User::getEmail)
+                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+    }
+
     private AuthResponse generateTokens(User user) {
         String accessToken = jwtUtil.generateAccessToken(user.getId(), user.getEmail(), user.getRole());
         String refreshToken = jwtUtil.generateRefreshToken(user.getId());
