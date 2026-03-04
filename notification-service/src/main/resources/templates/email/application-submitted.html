@@ -2,10 +2,12 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <body>
 <h2>New application received!</h2>
-<p>A candidate has applied to your job.</p>
-<p>Job ID: <strong th:text="${jobId}"></strong></p>
-<p>Application ID: <strong th:text="${applicationId}"></strong></p>
-<p>Candidate ID: <strong th:text="${candidateId}"></strong></p>
+<p>A candidate has applied to your job posting.</p>
+<br>
+<p><strong>Job:</strong> <span th:text="${jobTitle}"></span></p>
+<p><strong>Candidate:</strong> <span th:text="${candidateEmail}"></span></p>
+<p><strong>Application ID:</strong> <span th:text="${applicationId}"></span></p>
+<br>
 <p>Log in to review the application.</p>
 <br>
 <p>— Job Board Team</p>

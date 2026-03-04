@@ -182,6 +182,8 @@ services:
         condition: service_healthy
       mailhog:
         condition: service_started
+      auth-service:
+        condition: service_started
     environment:
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_PORT: 5672
@@ -189,6 +191,7 @@ services:
       SPRING_RABBITMQ_PASSWORD: guest
       SPRING_MAIL_HOST: mailhog
       SPRING_MAIL_PORT: 1025
+      AUTH_SERVICE_URL: http://auth-service:8081
     networks:
       - jobboard-network
 

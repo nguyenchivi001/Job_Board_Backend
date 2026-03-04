@@ -6,10 +6,11 @@ import org.springframework.cloud.gateway.filter.ratelimit.RedisRateLimiter;
 import org.springframework.cloud.gateway.route.RouteLocator;
 import org.springframework.cloud.gateway.route.builder.GatewayFilterSpec;
 import org.springframework.cloud.gateway.route.builder.RouteLocatorBuilder;
+import org.springframework.cloud.gateway.route.builder.UriSpec;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import java.util.function.Consumer;
+import java.util.function.Function;
 
 @Configuration
 public class GatewayConfig {
@@ -23,7 +24,7 @@ public class GatewayConfig {
                                RedisRateLimiter rateLimiter,
                                KeyResolver keyResolver) {
 
-        Consumer<GatewayFilterSpec> rateLimit = f -> f.requestRateLimiter(c -> {
+        Function<GatewayFilterSpec, UriSpec> rateLimit = f -> f.requestRateLimiter(c -> {
             c.setRateLimiter(rateLimiter);
             c.setKeyResolver(keyResolver);
         });

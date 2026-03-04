@@ -46,14 +46,15 @@ public class NotificationListener {
         log.info("Received application.submitted event: applicationId={}, jobId={}", event.getApplicationId(), event.getJobId());
         try {
             String employerEmail = authServiceClient.getUserEmail(event.getEmployerId()).getEmail();
+            String candidateEmail = authServiceClient.getUserEmail(event.getCandidateId()).getEmail();
             emailService.sendEmail(
                     employerEmail,
-                    "New application received for job #" + event.getJobId(),
+                    "New application received for: " + event.getJobTitle(),
                     "application-submitted",
                     Map.of(
-                            "applicationId", event.getApplicationId(),
-                            "jobId", event.getJobId(),
-                            "candidateId", event.getCandidateId()
+                            "jobTitle", event.getJobTitle(),
+                            "candidateEmail", candidateEmail,
+                            "applicationId", event.getApplicationId()
                     )
             );
         } catch (Exception e) {
@@ -68,11 +69,10 @@ public class NotificationListener {
             String candidateEmail = authServiceClient.getUserEmail(event.getCandidateId()).getEmail();
             emailService.sendEmail(
                     candidateEmail,
-                    "Your application status has been updated: " + event.getStatus(),
+                    "Your application for \"" + event.getJobTitle() + "\" has been updated",
                     "application-status-updated",
                     Map.of(
-                            "applicationId", event.getApplicationId(),
-                            "jobId", event.getJobId(),
+                            "jobTitle", event.getJobTitle(),
                             "status", event.getStatus()
                     )
             );

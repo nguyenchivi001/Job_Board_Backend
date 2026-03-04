@@ -48,7 +48,7 @@ public class ApplicationService {
 
         // 4. Publish event
         ApplicationSubmittedEvent event = new ApplicationSubmittedEvent(
-                saved.getId(), saved.getJobId(), saved.getCandidateId(), job.getEmployerId()
+                saved.getId(), saved.getJobId(), job.getTitle(), saved.getCandidateId(), job.getEmployerId()
         );
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE, RabbitMQConfig.ROUTING_KEY_APP_SUBMITTED, event);
         log.info("Published application.submitted event for applicationId={}", saved.getId());
@@ -93,7 +93,7 @@ public class ApplicationService {
         // Publish event nếu status thay đổi
         if (!oldStatus.equals(request.getStatus())) {
             ApplicationStatusUpdatedEvent event = new ApplicationStatusUpdatedEvent(
-                    updated.getId(), updated.getJobId(), updated.getCandidateId(), updated.getStatus()
+                    updated.getId(), updated.getJobId(), job.getTitle(), updated.getCandidateId(), updated.getStatus()
             );
             rabbitTemplate.convertAndSend(
                     RabbitMQConfig.EXCHANGE, RabbitMQConfig.ROUTING_KEY_APP_STATUS_UPDATED, event);

@@ -2,9 +2,8 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <body>
 <h2>Your application status has been updated</h2>
-<p>Application ID: <strong th:text="${applicationId}"></strong></p>
-<p>Job ID: <strong th:text="${jobId}"></strong></p>
-<p>New status: <strong th:text="${status}"></strong></p>
+<p><strong>Job:</strong> <span th:text="${jobTitle}"></span></p>
+<p><strong>New status:</strong> <span th:text="${status}"></span></p>
 <br>
 <p th:if="${status == 'ACCEPTED'}">Congratulations! Your application has been accepted.</p>
 <p th:if="${status == 'REJECTED'}">Unfortunately, your application was not selected this time.</p>

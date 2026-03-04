@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 public class ApplicationStatusUpdatedEvent {
     private Long applicationId;
     private Long jobId;
+    private String jobTitle;
     private Long candidateId;
     private String status;
 }
