@@ -205,4 +205,22 @@ class AuthServiceTest {
         assertThatThrownBy(() -> authService.logout("bad_token"))
                 .isInstanceOf(InvalidTokenException.class);
     }
+
+    @Test
+    void getUserEmail_existingUser_returnsEmail() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+
+        String email = authService.getUserEmail(1L);
+
+        assertThat(email).isEqualTo("user@test.com");
+    }
+
+    @Test
+    void getUserEmail_userNotFound_throwsRuntimeException() {
+        when(userRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> authService.getUserEmail(99L))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("99");
+    }
 }
